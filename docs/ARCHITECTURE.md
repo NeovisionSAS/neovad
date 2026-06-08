@@ -150,7 +150,14 @@ fp32** models at dim=128/depth=4:
 | mla | 0.69 | 2.78 | 0.209 |
 | **silero-v6** | 0.46 | 2.19 | **0.009** |
 
-Reading this honestly: neovad already matches Silero on **size** and is comfortably
+**First trained result (pipeline validation).** A 6-epoch smoke run of `mamba2`
+(0.89M params) on the on-the-fly noisy multi-speaker mix reaches **val/primary_f1
+≈ 0.91** (train loss 0.58→0.30, val/acc 0.80→0.85) — i.e. the 0.89M-param stateful
+model isolates the foreground speaker at ~91% F1 with interferers and noise present.
+This is a short validation run, not a tuned model; a longer clean→noisy curriculum is
+expected to improve calibration on out-of-distribution clean wideband audio.
+
+Reading the latency honestly: neovad already matches Silero on **size** and is comfortably
 real-time (RTF ≤ 0.21 = ≥5× faster than real time), but it is **not yet beating Silero on
 raw RTF** — expected, because (a) these are eager fp32 PyTorch graphs vs Silero's
 optimized JIT/ONNX, and (b) neovad runs 3.2× more frames/second (10 ms vs 32 ms hop). The
