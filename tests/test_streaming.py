@@ -44,6 +44,18 @@ def test_model_forward_step_equivalence(backbone, make_model):
     assert torch.allclose(full[:, :n], stepped[:, :n], atol=1e-3)
 
 
+def test_mamba2_forward_finite_long_sequence():
+    # Regression: the quadratic SSD form must not overflow on long clips. With a large
+    # dt the upper-triangle decay exponent is big; masking before exp keeps it finite
+    # (an unmasked `exp(rel) * mask` produced inf*0 = nan and diverged training).
+    torch.manual_seed(0)
+    mixer = Mamba2Config(headdim=16, d_state=16).build(64, depth=2).eval()
+    mixer.dt_bias.data.fill_(4.0)
+    with torch.no_grad():
+        out = mixer(torch.randn(1, 300, 64))
+    assert torch.isfinite(out).all()
+
+
 def test_frontend_forward_step_equivalence():
     torch.manual_seed(0)
     fe = MelFrontend(FrontendConfig()).eval()

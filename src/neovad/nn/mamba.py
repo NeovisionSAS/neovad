@@ -108,7 +108,10 @@ class Mamba2Mixer(StreamingMixer):
         rel = cum_h[..., :, None] - cum_h[..., None, :]  # [B, H, T, T] = cum_t - cum_s
         t = x.shape[1]
         mask = torch.ones(t, t, device=x.device, dtype=torch.bool).tril()
-        scores = cb * torch.exp(rel) * mask
+        # Mask BEFORE exp: the upper triangle has rel > 0, so exp(rel) overflows to inf
+        # and inf * 0 = nan. Sending masked positions to -inf makes exp() exactly 0.
+        rel = rel.masked_fill(~mask, float("-inf"))
+        scores = cb * torch.exp(rel)
         vals = dt[..., None] * xi  # [B, T, H, P]
         y = torch.einsum("bhts,bshp->bthp", scores, vals)  # [B, T, H, P]
         y = y + self.D[None, None, :, None] * xi
