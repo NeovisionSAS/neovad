@@ -1,9 +1,20 @@
 import torch
+import torch.nn.functional as F
 
 from neovad.config import DataConfig
 from neovad.data.synth import MixtureSynthesizer
 from neovad.frontend.mel import FrontendConfig
 from neovad.nn.head import SpeechClass
+
+
+def test_fft_convolve_matches_direct():
+    # The fast RIR path must equal a direct linear convolution truncated to input length.
+    x = torch.randn(2000)
+    h = torch.randn(300)
+    direct = F.conv1d(x[None, None], h.flip(0)[None, None], padding=h.shape[-1] - 1)[0, 0][
+        : x.shape[-1]
+    ]
+    assert torch.allclose(MixtureSynthesizer.fft_convolve(x, h), direct, atol=1e-4)
 
 
 def test_synth_shapes_and_labels(audio_pool):
