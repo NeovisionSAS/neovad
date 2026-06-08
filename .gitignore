@@ -1,0 +1,42 @@
+# Internal conversation context (not for the public repo)
+.project/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.uv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Training / experiment artefacts
+lightning_logs/
+runs/
+checkpoints/
+*.ckpt
+*.onnx
+*.pt
+wandb/
+
+# Data (lives in /disk/manual, never committed)
+data/
+*.wav
+*.flac
+*.tar
+*.tar.gz
+*.zip
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

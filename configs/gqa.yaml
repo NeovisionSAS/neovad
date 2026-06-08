@@ -1,0 +1,10 @@
+# Grouped-query attention reference (Llama/Mistral wiring), sliding window + RoPE.
+name: gqa
+model:
+  dim: 128
+  depth: 4
+  mixer:
+    kind: gqa
+    n_heads: 4
+    n_kv_heads: 1
+    window: 128

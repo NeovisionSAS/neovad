@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "neovad"
+version = "0.1.0"
+description = "Small, streaming, CPU-friendly voice activity detector with pluggable modern backbones (efficient attention / Mamba-2)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Neovision", email = "contact@neovision.fr" }]
+keywords = ["vad", "voice-activity-detection", "streaming", "mamba", "attention", "speech"]
+dependencies = [
+    "torch>=2.2",
+    "numpy>=1.24",
+    "pydantic>=2.6",
+    "einops>=0.7",
+    "soundfile>=0.12",
+    "pyyaml>=6.0",
+    "typer>=0.12",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+# Training engine + dataset tooling (not needed for pure CPU inference).
+train = [
+    "lightning>=2.2",
+    "torchaudio>=2.2",
+    "datasets>=2.18",
+    "tensorboard>=2.16",
+    "tqdm>=4.66",
+]
+# Latency / accuracy comparison against the reference Silero VAD.
+bench = [
+    "silero-vad>=5.1",
+    "onnxruntime>=1.17",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+neovad = "neovad.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/NeovisionSAS/neovad"
+Repository = "https://github.com/NeovisionSAS/neovad"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/neovad"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/neovad", "configs", "README.md", "LICENSE"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# E741: single-char names (we use math-style i/j/r/dn/dv). B008: typer uses
+# Option()/Argument() calls as defaults by design.
+ignore = ["E741", "B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

@@ -1,0 +1,10 @@
+# Primary attention backbone: Differential Attention. Two-softmax common-mode
+# cancellation suppresses background noise and secondary voices the two maps share.
+name: diffattn
+model:
+  dim: 128
+  depth: 4
+  mixer:
+    kind: diffattn
+    n_heads: 4
+    window: 128

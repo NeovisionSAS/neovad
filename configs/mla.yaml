@@ -1,0 +1,12 @@
+# DeepSeek-style Multi-head Latent Attention: smallest streaming KV cache (compressed
+# latent + decoupled rotary key). The comparison point for cache cost.
+name: mla
+model:
+  dim: 128
+  depth: 4
+  mixer:
+    kind: mla
+    n_heads: 4
+    qk_rope_dim: 16
+    kv_lora_rank: 64
+    window: 128

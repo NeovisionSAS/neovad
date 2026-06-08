@@ -1,0 +1,13 @@
+# Headline stateful backbone: Mamba-2 SSD. Constant O(1)-per-step state implicitly
+# tracks the dominant speaker over a whole call. Presets declare only what differs
+# from the defaults in neovad.config; everything else is filled in.
+name: mamba2
+model:
+  dim: 128
+  depth: 4
+  mixer:
+    kind: mamba2
+    headdim: 64
+    d_state: 64
+    n_groups: 1
+    d_conv: 4
