@@ -24,8 +24,9 @@ Silero v6 (~0.46–1.8M params depending on count method, ~2 MB, RTF ≈ 0.009 o
 thread) is the incumbent. Its STFT → 4×Conv1d → 128-unit LSTM → sigmoid runs on fixed
 512-sample (32 ms) chunks carrying a `(2,1,128)` LSTM state. Its documented weakness is
 **not** per-chunk compute but a several-hundred-millisecond *decision* delay on
-speech→silence transitions, plus speaker-agnostic firing (ROC-AUC drops to 0.79 on the
-noisy overlapping-speaker set MSDWild). TEN-VAD (2025, open, ~32% lower RTF, faster
+speech→silence transitions, plus speaker-agnostic firing (it degrades on noisy
+overlapping-speaker audio such as MSDWild — to recompute in our own harness rather than
+quote a single unverified number). TEN-VAD (2025, open, ~32% lower RTF, faster
 transitions) and ai-coustics Quail (commercial, lifts noisy balanced accuracy 79→90%)
 show the headroom. neovad targets the *decision-latency* and *foreground* axes, not a
 raw-RTF race.
@@ -164,18 +165,37 @@ optimized JIT/ONNX, and (b) neovad runs 3.2× more frames/second (10 ms vs 32 ms
 harness exists precisely to drive this number down and to measure the metric Silero is
 actually weak on — transition-decision latency — which raw RTF hides.
 
-## 6. Roadmap (where the latency win is realised)
+## 6. Compression & export (`neovad export`, `neovad.export.ModelExporter`)
 
-1. **int8 ONNX export** of the `step` graph (encoder/decoder split, Silero v5 strategy):
-   ~4× size and a large CPU-latency cut — the path to ≤ Silero RTF.
+Correction to an earlier draft: **Silero ships fp32**, not int8 — it explicitly dropped
+quantization (ARM/mobile instability); its speed is operator *fusion* (fp32 JIT/ONNX) plus
+tiny tensors. So fused-fp32 is the main speed lever, int8 is an optional size win, and
+`torch.fft.rfft` — not quantization — is the real ONNX blocker. neovad offers three paths:
+
+| path | what | result | when |
+|---|---|---|---|
+| `quantize_dynamic` | torch int8 on Linear/GRU | gru **3.55 → 1.00 MB** (under Silero's 2 MB), keeps the streaming `step` API | Python CPU deployment; re-check AUC after |
+| `jit_trace` | TorchScript fused graph | exact, faster offline (Silero's fp32 recipe) | offline / batch in Python |
+| `onnx` | ONNX Runtime via the DFT-matmul frontend (`rfft` is not exportable) | faithful (1e-5) for mamba2/diffattn/gqa; GRU export is lossy; **int8-ONNX grows tiny RNNs — skip it** | cross-language (C++/Rust) CPU |
+
+"Is ONNX best?" — not universally: for the GRU baseline, **torch int8 (1 MB)** wins; for
+mamba/attention deployed cross-platform, **ONNX fp32** is faithful and portable; ONNX-int8
+is counter-productive at this size.
+
+## 7. Roadmap
+
+1. **Fused-fp32 first** (JIT) then optional int8 — the realistic path to ≤ Silero RTF;
+   int8 is gated on a post-quant AUC check, not assumed free.
 2. **Decision-latency metric** in the bench (ms from true offset to detected offset) —
    the axis where the 10 ms hop + zero look-ahead structurally beats Silero.
 3. **Accuracy eval harness** on AVA-Speech / VoxConverse / MSDWild: per-condition
-   ROC-AUC and the foreground-specific false-activation-on-interferer rate no
-   speaker-agnostic VAD can score.
-4. **EEND-SAA causal-aware labelling** (lock onto the first sustained dominant speaker)
-   and an optional **FiLM speaker-conditioning** path for the enrollment-capable variant
-   on the same weights.
+   ROC-AUC and the foreground-specific `secondary_false_fire` rate (now logged each val).
+4. **Sharper labels** — Montreal Forced Alignment on LibriSpeech transcripts (gold
+   standard) over the energy gate, to tighten transition labels for the latency goal.
+5. **More real overlap/noise** — AMI (CC-BY real crosstalk), FSD50K/DEMAND (real noise),
+   VoxCeleb2 (diverse interferer pool); see §4.
+6. **EEND-SAA causal-aware labelling** + optional **FiLM speaker-conditioning** on the
+   same weights.
 
 ## 7. Risks (carried from the design review)
 

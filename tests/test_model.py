@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 
 from neovad.infer.stream import StreamingVAD
@@ -23,6 +24,13 @@ def test_from_backbone(backbone):
     model = VADModel.from_backbone(backbone)
     assert model.cfg.mixer.kind == backbone
     assert model.param_count < 5_000_000  # under budget
+
+
+def test_from_pretrained_missing_is_clear():
+    # pretrained_names lists bundled weights; an unknown name fails loudly, not silently.
+    assert isinstance(VADModel.pretrained_names(), list)
+    with pytest.raises(FileNotFoundError):
+        VADModel.from_pretrained("no-such-model")
 
 
 def test_speech_probability_range(make_model):

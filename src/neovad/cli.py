@@ -8,6 +8,7 @@ from rich.console import Console
 
 from neovad.bench.latency import LatencyBenchmark
 from neovad.data.sources import Datasets
+from neovad.export import ModelExporter
 from neovad.infer.stream import HysteresisGate
 from neovad.models.vad import VADModel
 from neovad.nn.head import VADHead
@@ -121,6 +122,34 @@ def infer(
             start = None
     if start is not None:
         console.print(f"speech {start:7.2f}s -> {len(probs) * frame_sec:7.2f}s")
+
+
+@app.command()
+def export(
+    out: Path = typer.Argument(..., help="output path"),
+    checkpoint: Path = typer.Option(None),
+    config: Path = typer.Option(None),
+    backbone: str = typer.Option(None),
+    fmt: str = typer.Option("onnx", help="onnx | jit | int8"),
+    quantize: bool = typer.Option(
+        False, help="int8-quantize the ONNX graph (not advised for tiny RNNs)"
+    ),
+    seconds: float = typer.Option(2.0, help="fixed clip length for jit/onnx tracing"),
+):
+    """Compress/export a trained model for CPU deployment (torch int8 / TorchScript / ONNX)."""
+    model = resolve_model(checkpoint, config, backbone).eval()
+    before = ModelExporter.size_mb(model)
+    if fmt == "int8":
+        torch.save(ModelExporter.quantize_dynamic(model), out)
+    elif fmt == "jit":
+        ModelExporter.jit_trace(model, seconds).save(str(out))
+    elif fmt == "onnx":
+        out = ModelExporter.onnx(model, out, seconds, quantize)
+    else:
+        raise typer.BadParameter(f"unknown format {fmt!r}; use onnx | jit | int8")
+    console.print(
+        f"[bold]{fmt}[/] {out} — {ModelExporter.size_mb(out):.2f} MB (fp32 was {before:.2f} MB)"
+    )
 
 
 if __name__ == "__main__":

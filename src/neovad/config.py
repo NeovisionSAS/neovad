@@ -35,9 +35,11 @@ class DataConfig(BaseModel):
     batch_size: int = 32
     num_workers: int = 8
     steps_per_epoch: int = 2000  # the synth stream is infinite; this bounds an epoch
-    # on-the-fly mixing
+    # on-the-fly mixing. MUSAN supplies noise + music + babble-speech; interferer
+    # voices are drawn from speech_sources. Heavier real-noise/overlap sets
+    # (DNS5, AMI, FSD50K) are optional opt-ins documented in docs/ARCHITECTURE.md.
     speech_sources: list[str] = ["librispeech"]
-    noise_sources: list[str] = ["musan", "dns5"]
+    noise_sources: list[str] = ["musan"]
     min_interferers: int = 0
     max_interferers: int = 3
     interferer_gain: tuple[float, float] = (0.1, 0.8)
@@ -57,6 +59,14 @@ class LossConfig(BaseModel):
     label_smoothing: float = 0.0
 
 
+class LogConfig(BaseModel):
+    # Controls the rich TensorBoard analysis logging (audio, mel, label-vs-pred).
+    media: bool = True  # log audio + spectrogram + prediction figures
+    media_every_n_epochs: int = 1
+    n_media_samples: int = 6  # examples rendered per media log
+    histograms: bool = True  # weight/grad histograms under hist/
+
+
 class TrainConfig(BaseModel):
     output_dir: str = "runs"
     max_epochs: int = 40
@@ -70,6 +80,7 @@ class TrainConfig(BaseModel):
     val_interval: float = 1.0
     seed: int = 0
     loss: LossConfig = LossConfig()
+    log: LogConfig = LogConfig()
 
 
 class NeoVADConfig(BaseModel):

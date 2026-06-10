@@ -29,12 +29,15 @@ train = [
     "torchaudio>=2.2",
     "datasets>=2.18",
     "tensorboard>=2.16",
+    "matplotlib>=3.8",
     "tqdm>=4.66",
 ]
-# Latency / accuracy comparison against the reference Silero VAD.
+# Latency / accuracy comparison against Silero, plus ONNX export + quantization.
 bench = [
     "silero-vad>=5.1",
     "onnxruntime>=1.17",
+    "onnx>=1.16",
+    "onnxscript>=0.1",
 ]
 dev = [
     "pytest>=8.0",
@@ -51,6 +54,7 @@ Repository = "https://github.com/NeovisionSAS/neovad"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/neovad"]
+artifacts = ["src/neovad/weights/*.pt"]  # bundled pretrained weights (gitignored *.pt)
 
 [tool.hatch.build.targets.sdist]
 include = ["src/neovad", "configs", "README.md", "LICENSE"]

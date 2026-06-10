@@ -69,6 +69,10 @@ class StreamingVAD:
         self.dtype = torch.float32
         self.reset()
 
+    @classmethod
+    def from_pretrained(cls, name: str = "mamba2", **kwargs) -> "StreamingVAD":
+        return cls(VADModel.from_pretrained(name), **kwargs)
+
     def reset(self) -> None:
         self.state = self.model.init_state(1, self.device, self.dtype)
         self.gate.reset()

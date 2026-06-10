@@ -22,6 +22,8 @@ class FrontendConfig(BaseModel):
     pcen_bias: float = 2.0  # delta
     pcen_power: float = 0.5  # r
     pcen_trainable: bool = True
+    dft_matmul: bool = False  # compute the spectrum via a real DFT matmul (ONNX-exportable)
+    # instead of torch.fft.rfft (which the ONNX exporter rejects)
 
 
 class FrontendState(ModuleState):
@@ -54,6 +56,10 @@ class MelFrontend(nn.Module):
         self.register_buffer("window", torch.hann_window(cfg.win_length), persistent=False)
         fb = self.mel_filterbank(cfg.n_mels, cfg.n_fft, cfg.sample_rate, cfg.fmin, cfg.fmax)
         self.register_buffer("mel_fb", fb, persistent=False)  # [n_mels, n_freqs]
+        if cfg.dft_matmul:
+            cos, sin = self.dft_basis(cfg.n_fft)
+            self.register_buffer("dft_cos", cos, persistent=False)  # [n_fft, n_freqs]
+            self.register_buffer("dft_sin", sin, persistent=False)
 
         t_frames = cfg.pcen_time_constant * cfg.sample_rate / cfg.hop_length
         self.b = (math.sqrt(1 + 4 * t_frames**2) - 1) / (2 * t_frames**2)
@@ -101,12 +107,23 @@ class MelFrontend(nn.Module):
             fb[i] = torch.clamp(torch.minimum(up, down), min=0.0)
         return fb
 
+    @staticmethod
+    def dft_basis(n_fft: int) -> tuple[Tensor, Tensor]:
+        # Real DFT bases so |rfft|^2 == (x @ cos)^2 + (x @ sin)^2 — exportable to ONNX.
+        n = torch.arange(n_fft)[:, None]
+        k = torch.arange(n_fft // 2 + 1)[None, :]
+        ang = 2 * torch.pi * n * k / n_fft
+        return torch.cos(ang), -torch.sin(ang)
+
     def spectral_mel(self, frames: Tensor) -> Tensor:
         # frames: [B, T, win_length] -> mel power [B, T, n_mels]
         windowed = frames * self.window
         windowed = F.pad(windowed, (0, self.cfg.n_fft - self.cfg.win_length))
-        spec = torch.fft.rfft(windowed, dim=-1)
-        power = spec.real**2 + spec.imag**2
+        if self.cfg.dft_matmul:
+            power = (windowed @ self.dft_cos) ** 2 + (windowed @ self.dft_sin) ** 2
+        else:
+            spec = torch.fft.rfft(windowed, dim=-1)
+            power = spec.real**2 + spec.imag**2
         return power @ self.mel_fb.t()
 
     def apply_pcen(self, mel: Tensor, m_prev: Tensor | None) -> tuple[Tensor, Tensor]:

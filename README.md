@@ -59,19 +59,21 @@ pip install "neovad[bench] @ git+https://github.com/NeovisionSAS/neovad.git"
 ### Streaming inference (the deployment path)
 
 ```python
-import torch
-from neovad import VADModel, StreamingVAD
+from neovad import StreamingVAD
 
-model = VADModel.from_config("configs/mamba2.yaml")  # or a trained checkpoint
-vad = StreamingVAD(model)                            # 16 kHz, 10 ms hops
+# the pretrained model ships with the package — no download, no config
+vad = StreamingVAD.from_pretrained("mamba2", input_sample_rate=8000)  # e.g. 8 kHz telephony
 
-# feed 10 ms chunks (160 samples @ 16 kHz) as they arrive
+# feed audio chunks as they arrive
 for chunk in audio_chunks(hop=160):
     probs = vad.push(chunk)        # foreground-speech probability per 10 ms frame
     if vad.is_speaking:            # hysteresis-smoothed gate
         ...                        # forward audio to STT
 vad.reset()                        # at the call boundary
 ```
+
+`VADModel.from_pretrained(name)` loads weights bundled in the wheel; `from_config(yaml)`
+or `load(checkpoint)` build/restore your own.
 
 ### Train a model
 
@@ -87,10 +89,16 @@ train(cfg)                          # Lightning under the hood; multi-GPU aware
 ```bash
 neovad list-backbones                       # gru gqa mla diffattn mamba2
 neovad download --root /disk/manual         # fetch training + eval datasets
-neovad train  configs/mamba2.yaml
-neovad bench  --checkpoint runs/mamba2/best.ckpt   # latency + accuracy vs Silero
-neovad infer  audio.wav --checkpoint ...
+neovad train  configs/mamba2.yaml                  # rich TensorBoard logs (audio, mel, figures)
+neovad bench  --all-backbones --silero             # latency / size / RTF vs Silero
+neovad infer  audio.wav --backbone mamba2
+neovad export model.onnx --backbone mamba2         # or --fmt int8 / jit for CPU deploy
 ```
+
+Training logs to TensorBoard with folded categories: `train/`, `val/` (loss, primary
+F1/precision/recall, `secondary_false_fire`), `lr/`, `audio/` (clean primary **and** the
+augmented mixture, so you can hear the augmentation), `media/` (PCEN mel + per-frame
+label-vs-prediction figures), and `hist/` (weight/grad histograms).
 
 ## How it beats Silero
 

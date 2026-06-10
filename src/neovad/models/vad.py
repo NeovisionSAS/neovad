@@ -1,3 +1,4 @@
+from importlib import resources
 from pathlib import Path
 from typing import Self
 
@@ -52,6 +53,25 @@ class VADModel(nn.Module):
         model = cls(ModelConfig.model_validate(ckpt["config"]))
         model.load_state_dict(ckpt["state_dict"])
         return model
+
+    @staticmethod
+    def pretrained_names() -> list[str]:
+        weights = resources.files("neovad").joinpath("weights")
+        if not weights.is_dir():
+            return []
+        return sorted(f.name[:-3] for f in weights.iterdir() if f.name.endswith(".pt"))
+
+    @classmethod
+    def from_pretrained(cls, name: str = "mamba2", map_location: str = "cpu") -> Self:
+        """Load weights bundled with the installed package — `pip install` then
+        `VADModel.from_pretrained()` gives a ready-to-use model, no download."""
+        path = resources.files("neovad").joinpath("weights", f"{name}.pt")
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"no bundled weights {name!r}; available: {cls.pretrained_names()}"
+            )
+        with resources.as_file(path) as real:
+            return cls.load(real, map_location=map_location)
 
     @property
     def param_count(self) -> int:

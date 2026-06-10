@@ -36,6 +36,10 @@ data/
 *.tar.gz
 *.zip
 
+# Bundled pretrained weights are an exception — they ship with the package
+!src/neovad/weights/
+!src/neovad/weights/*.pt
+
 # Editor / OS
 .idea/
 .vscode/
