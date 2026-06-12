@@ -40,7 +40,7 @@ Trained on on-the-fly mixtures: LibriSpeech primary + 0–3 interfering speakers
 # pip install "git+ssh://git@github.com/NeovisionSAS/neovad.git"
 from neovad import StreamingVAD
 
-vad = StreamingVAD.from_pretrained("mamba2", input_sample_rate=8000)
+vad = StreamingVAD.from_pretrained("gru", input_sample_rate=8000)
 for chunk in audio_stream():
     probs = vad.push(chunk)
     if vad.is_speaking:

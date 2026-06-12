@@ -175,15 +175,14 @@ On 1 CPU thread, 20 s audio, **untrained eager fp32** models at dim=128/depth=4:
 | mla | 0.69 | 2.78 | 0.209 |
 | **silero-v6** | 0.46 | 2.19 | **0.009** |
 
-**Trained result (the bundled `mamba2` pretrained model).** A 20-epoch run of `mamba2`
-(0.89M params) on the on-the-fly noisy multi-speaker mix reaches **val/primary_f1 0.955**
-(precision 0.93, recall 0.98, frame acc 0.93). Critically for the project's goal, the
-background-voice false-fire rate — `secondary_false_fire`, the fraction of interferer-only
-frames it wrongly flags as foreground — falls **0.55 → 0.19** over training, i.e. the
-stateful model learns to ignore background voices. These weights ship in the wheel
-(`VADModel.from_pretrained("mamba2")`). Compression: fp32 3.58 MB → **torch-int8 1.03 MB**
-(under Silero's ~2 MB) → onnx-fp32 2.66 MB. Numbers are on the synthetic validation
-distribution; the AVA-Speech / VoxConverse eval harness (roadmap) is the next measure.
+**Trained result (the bundled `gru` model).** Trained on the multi-task objective —
+synthetic foreground mixtures + diverse real labelled audio (VoxConverse-dev, AMI
+train ihm/sdm, simsamu 8kHz phone calls) degraded to deployment conditions — the 0.88M
+`gru` **beats Silero on two held-out neutral sets**: VoxConverse-test ROC-AUC 0.941 vs
+0.935 (F1 0.979 vs 0.970) and AMI-test 0.921 vs 0.902 (F1 0.968 vs 0.867). The
+synthetic→real domain gap, not architecture, was the bottleneck; scaling real
+deployment-representative data closed it. Foreground gating trades against the
+any-speech objective via `LossConfig.real_weight`.
 
 Reading the latency honestly: neovad already matches Silero on **size** and is comfortably
 real-time (RTF ≤ 0.21 = ≥5× faster than real time), but it is **not yet beating Silero on

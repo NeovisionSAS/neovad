@@ -57,7 +57,7 @@ class VAD(lk_vad.VAD):
     def load(
         cls,
         *,
-        model: str | VADModel = "mamba2",
+        model: str | VADModel = "gru",
         gate: Literal["primary", "any_speech"] = "primary",
         min_speech_duration: float = 0.05,
         min_silence_duration: float = 0.55,

@@ -66,7 +66,7 @@ class VADModel(nn.Module):
     HF_REPO = "NeovisionTech/neovad"
 
     @classmethod
-    def from_pretrained(cls, name: str = "mamba2", map_location: str = "cpu") -> Self:
+    def from_pretrained(cls, name: str = "gru", map_location: str = "cpu") -> Self:
         """Load named pretrained weights: first from the wheel (bundled, offline), then
         from the HuggingFace Hub (``HF_REPO``) for checkpoints published after this
         package version shipped."""

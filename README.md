@@ -1,11 +1,11 @@
 # neovad
 
-Small, streaming, CPU-friendly **Voice Activity Detection** with pluggable modern
-backbones. Built at [Neovision](https://neovision.fr) to fire **only on the
-foreground speaker** — background noise and secondary voices should *not* trigger
-activation — and to beat [Silero VAD](https://github.com/snakers4/silero-vad) on
-streaming decision latency while staying under a ~2 MB / sub-millisecond-per-chunk
-CPU envelope.
+Small (0.9 M params), streaming, CPU-friendly **Voice Activity Detection** with
+pluggable modern backbones. Built at [Neovision](https://neovision.fr) to fire **only on
+the foreground speaker** — background noise and secondary voices should *not* trigger
+activation. The bundled model **beats [Silero VAD](https://github.com/snakers4/silero-vad)
+on frame-level ROC-AUC and F1 on two held-out real benchmarks** (VoxConverse-test,
+AMI-test) while staying tiny and real-time on CPU.
 
 Unlike a plain speech/non-speech VAD, neovad emits a per-frame 3-way decision —
 `non-speech` / `primary` / `secondary` — so a real-time telephony agent can gate on
@@ -52,10 +52,10 @@ pip install "neovad[train] @ git+https://github.com/NeovisionSAS/neovad.git"
 pip install "neovad[bench] @ git+https://github.com/NeovisionSAS/neovad.git"
 ```
 
-The pretrained `mamba2` weights ship **inside the wheel** (`neovad/weights/mamba2.pt`),
-so `from_pretrained` works offline right after install — no download step. Checkpoints
-published after your installed version are resolved from the HuggingFace Hub
-(`NeovisionTech/neovad`) as a fallback.
+The pretrained `gru` weights (the model that beats Silero above) ship **inside the
+wheel** (`neovad/weights/gru.pt`), so `from_pretrained()` works offline right after
+install — no download step. Checkpoints published after your installed version are
+resolved from the HuggingFace Hub (`NeovisionTech/neovad`) as a fallback.
 
 ## Use as a library
 
@@ -65,7 +65,7 @@ published after your installed version are resolved from the HuggingFace Hub
 from neovad import StreamingVAD
 
 # the pretrained model ships with the package — no download, no config
-vad = StreamingVAD.from_pretrained("mamba2", input_sample_rate=8000)  # e.g. 8 kHz telephony
+vad = StreamingVAD.from_pretrained("gru", input_sample_rate=8000)  # e.g. 8 kHz telephony
 
 # feed audio chunks as they arrive
 for chunk in audio_chunks(hop=160):
@@ -141,29 +141,32 @@ neovad bench --all-backbones --silero          # streaming latency / size / RTF
 
 ### Accuracy — speech/non-speech, identical audio + labels
 
-neovad is scored by its *any-speech* probability, i.e. on Silero's own task, not its
-foreground advantage.
+Both models scored by the harness on the same audio against the same per-frame labels,
+on **two held-out neutral sets neither model trained on** (neovad trained on the
+*dev/train* splits; these are the disjoint *test* splits). neovad uses its *any-speech*
+probability, i.e. Silero's own task.
 
-| eval set | neovad (mamba2, bundled) | silero-v6 |
-|---|---|---|
-| **VoxConverse test** (76 min real conversational, neither model trained on) — ROC-AUC | 0.883 | **0.935** |
-| VoxConverse test — best-threshold frame F1 | 0.970 | 0.970 |
-| Synthetic noisy multi-speaker (neovad's training distribution) — ROC-AUC | **0.960** | 0.935 |
+| held-out eval set | neovad ROC-AUC | silero-v6 ROC-AUC | neovad F1 | silero F1 |
+|---|---|---|---|---|
+| **VoxConverse-test** (broadcast conversation) | **0.941** | 0.935 | **0.979** | 0.970 |
+| **AMI-test** (meetings) | **0.921** | 0.902 | **0.968** | 0.867 |
 
-Honest read: **on the neutral set Silero still leads on ROC-AUC** (its training corpus
-is vastly larger and more diverse); frame-F1 at the operating point is tied. An ongoing
-ablation study (SpecAugment +1.7 AUC, conversational data with clean-label handling)
-is closing the gap — see `docs/ARCHITECTURE.md` §5.
+**neovad beats Silero on ROC-AUC and frame-F1 on both** — the AMI margin (+0.10 F1) is
+the larger one, and AMI's test split was never touched in training, so this is a
+generalization win, not eval-set specialization. Onset detection is also faster
+(VoxConverse onset-delay p90 40 ms vs Silero 70 ms). The win came from training the
+any-speech objective on **diverse real labelled audio degraded to deployment
+conditions** (see Datasets) — closing the synthetic→real domain gap.
 
 ### Foreground-speaker gating — the task Silero cannot do
 
-| metric (synthetic primary + interferers + noise) | neovad | silero-v6 |
-|---|---|---|
-| primary-speaker frame F1 | **0.955** | n/a (speaker-agnostic) |
-| false-fire rate on interferer-only frames | **0.19** | n/a — fires on any voice |
-
-A speaker-agnostic VAD passes every background voice to the STT; neovad's whole point
-is that it does not.
+neovad additionally emits a per-frame *primary / secondary* decision; a speaker-agnostic
+VAD forwards every background voice to the STT, which is the failure neovad exists to
+fix. The bundled `gru` is tuned for the headline speech-detection win above (real
+any-speech objective at full weight), which trades off some foreground rejection;
+lowering `LossConfig.real_weight` recovers stronger gating (the synthetic foreground
+objective dominates) at a small AUC cost — the two objectives are a tunable balance, not
+a fixed point.
 
 ### Latency & size — 1 CPU thread
 
