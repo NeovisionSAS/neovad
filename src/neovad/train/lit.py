@@ -48,8 +48,12 @@ class NeoVADLit(L.LightningModule):
             real_wav, real_speech = batch["real"]
             real_logits, real_speech = self.align(self.model(real_wav), real_speech)
             speech_logit = self.model.head.any_speech_logit(real_logits)
+            # Conversational audio is ~96% speech; class-balance so the rare non-speech
+            # frames (the ones that teach rejection) are not drowned out.
+            pos = real_speech.mean().clamp(0.05, 0.95)
+            w = real_speech / pos + (1 - real_speech) / (1 - pos)
             real_loss = torch.nn.functional.binary_cross_entropy_with_logits(
-                speech_logit, real_speech
+                speech_logit, real_speech, weight=w
             )
             self.log("train/real_loss", real_loss, prog_bar=True)
             loss = loss + self.cfg.train.loss.real_weight * real_loss
