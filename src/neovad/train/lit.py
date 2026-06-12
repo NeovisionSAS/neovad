@@ -9,6 +9,7 @@ from torch import Tensor
 from neovad.config import NeoVADConfig
 from neovad.data.dataset import SynthVADDataset
 from neovad.data.real import RealVADDataset
+from neovad.data.sources import Datasets
 from neovad.models.vad import VADModel
 from neovad.nn.head import SpeechClass
 from neovad.train.loss import FrameVADLoss
@@ -128,10 +129,15 @@ class NeoVADLit(L.LightningModule):
         )
         train_loader = SynthVADDataset.loader(cfg)
         if cfg.data.real_windows > 0:
-            RealVADDataset.build_cache(cfg.data.real_cache, cfg.data.real_windows)
-            real = RealVADDataset(cfg.data.real_cache, cfg.data, cfg.model.frontend)
+            RealVADDataset.build_cache(
+                cfg.data.real_cache, cfg.data.real_sources, cfg.data.real_windows
+            )
+            noise = Datasets.files("noise", cfg.data.root, cfg.data.noise_sources) + Datasets.files(
+                "music", cfg.data.root, cfg.data.noise_sources
+            )
+            real = RealVADDataset(cfg.data.real_cache, cfg.data, cfg.model.frontend, noise)
             train_loader = CombinedLoader(
-                {"synth": train_loader, "real": real.loader(cfg.data.batch_size, 2)},
+                {"synth": train_loader, "real": real.loader(cfg.data.batch_size, 3)},
                 mode="max_size_cycle",
             )
         trainer.fit(lit, train_loader, SynthVADDataset.loader(cfg))

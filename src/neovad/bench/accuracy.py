@@ -171,32 +171,49 @@ class AccuracyBenchmark:
         return clips
 
     @staticmethod
-    def voxconverse_clips(
-        n: int, window_s: int = 30, sr: int = 16000, hop: int = 160, split: str = "test"
+    def diarized_clips(
+        repo: str,
+        config: str | None,
+        split: str,
+        n: int,
+        window_s: int = 30,
+        sr: int = 16000,
+        hop: int = 160,
     ) -> list:
-        # split="test": the neutral eval benchmark — NEVER trained on.
-        # split="dev": disjoint recordings, usable as real supervised training data.
+        """Stream a HuggingFace diarization dataset (audio + timestamps_start/end) and
+        slice each recording into ``window_s`` windows with per-``hop`` speech labels
+        (speech = union of any speaker segment). Resamples to ``sr``. The shared
+        extractor for both the neutral eval sets and the real-audio training corpus."""
         from datasets import Audio, load_dataset  # optional (the `train` extra)
 
-        ds = load_dataset("diarizers-community/voxconverse", split=split, streaming=True)
+        ds = load_dataset(repo, config, split=split, streaming=True)
         ds = ds.cast_column("audio", Audio(decode=False))
+        win = window_s * sr
         clips = []
         for ex in ds:
             raw = ex["audio"]["bytes"] or open(ex["audio"]["path"], "rb").read()
-            data, _ = sf.read(io.BytesIO(raw), dtype="float32")
+            data, src_sr = sf.read(io.BytesIO(raw), dtype="float32")
             if data.ndim > 1:
                 data = data.mean(1)
-            win = window_s * sr
+            if src_sr != sr:
+                m = round(len(data) * sr / src_sr)
+                data = np.interp(np.linspace(0, len(data) - 1, m), np.arange(len(data)), data)
+                data = data.astype(np.float32)
             for i in range(0, len(data) - win + 1, win):
                 nf = win // hop
                 y = np.zeros(nf, dtype=np.int64)
                 for s, e in zip(ex["timestamps_start"], ex["timestamps_end"], strict=False):
                     a, b = int((s - i / sr) * sr / hop), int(np.ceil((e - i / sr) * sr / hop))
                     y[max(0, a) : min(nf, b)] = 1
-                clips.append((torch.from_numpy(data[i : i + win]), torch.from_numpy(y)))
+                clips.append((torch.from_numpy(data[i : i + win].copy()), torch.from_numpy(y)))
                 if len(clips) >= n:
                     return clips
         return clips
+
+    @classmethod
+    def voxconverse_clips(cls, n: int, split: str = "test", **kw) -> list:
+        # split="test": the neutral eval benchmark — NEVER trained on.
+        return cls.diarized_clips("diarizers-community/voxconverse", None, split, n, **kw)
 
     @staticmethod
     def report(results: list[AccuracyResult]) -> None:

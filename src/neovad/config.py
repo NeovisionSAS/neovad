@@ -48,6 +48,16 @@ class ModelConfig(BaseModel):
         return self.mixers or [self.mixer]
 
 
+class DiarizedSource(BaseModel):
+    """A HuggingFace diarization dataset (audio + timestamps_start/end + speakers) used
+    as real human-labelled speech/non-speech audio. Splits must be disjoint from any
+    used for evaluation."""
+
+    repo: str
+    config: str | None = None
+    split: str = "train"
+
+
 class DataConfig(BaseModel):
     root: str = "/disk/manual"
     sample_rate: int = 16000
@@ -75,10 +85,22 @@ class DataConfig(BaseModel):
     p_telephony: float = 0.5  # 8 kHz mu-law round-trip
     label_db_threshold: float = -40.0  # primary-reference energy gate for frame labels
     label_smooth_frames: int = 5  # median smoothing of the derived labels
-    # Real human-labelled audio (VoxConverse dev) mixed into training as an any-speech
-    # objective; 0 disables. Closes the synthetic->real domain gap the neutral eval shows.
+    # Real human-labelled audio mixed into training as an any-speech objective; 0
+    # disables. Closes the synthetic->real domain gap the neutral eval exposes. Sources
+    # are diverse + representative: broadcast conversation (VoxConverse dev), meetings
+    # (AMI train, close + distant mic), and native-8kHz medical phone calls (simsamu).
     real_windows: int = 0
-    real_cache: str = "/disk/manual/voxconverse_dev.pt"
+    real_cache: str = "/disk/manual/real_labeled.pt"
+    real_sources: list[DiarizedSource] = [
+        DiarizedSource(repo="diarizers-community/voxconverse", split="dev"),
+        DiarizedSource(repo="diarizers-community/ami", config="ihm", split="train"),
+        DiarizedSource(repo="diarizers-community/ami", config="sdm", split="train"),
+        DiarizedSource(repo="diarizers-community/simsamu", split="train"),
+    ]
+    # deployment-condition augmentation applied to real windows at train time, so the
+    # real-audio objective sees phone-like audio, not just clean wideband recordings.
+    real_p_telephony: float = 0.5
+    real_p_noise: float = 0.6
 
 
 class LossConfig(BaseModel):
